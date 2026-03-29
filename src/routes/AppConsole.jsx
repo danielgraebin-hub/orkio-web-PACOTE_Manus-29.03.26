@@ -2014,16 +2014,17 @@ function scheduleRealtimeIdleFollowup() {
       const magicEnabled = (ORKIO_ENV.VITE_REALTIME_MAGICWORDS || import.meta.env.VITE_REALTIME_MAGICWORDS || "true").toString().trim().toLowerCase() !== "false";
       rtcMagicEnabledRef.current = magicEnabled;
 
+      // PATCH realtime bootstrap: define routing before using agentIdToSend
+      const runtimeMode = summitRuntimeModeRef.current === "summit" ? "summit" : "platform";
+      const isInstitutionalSession = destMode === "team" || runtimeMode === "summit";
+      const agentIdToSend = isInstitutionalSession ? null : (destSingle || null);
+
       // Voice priority: agent.voice_id (Admin) > env default > fallback ("cedar")
       const selectedAgentObj = (agents || []).find(a => String(a.id) === String(agentIdToSend));
       const agentVoice = ((selectedAgentObj?.voice_id || selectedAgentObj?.voice || selectedAgentObj?.tts_voice || selectedAgentObj?.voiceId || "")).toString().trim();
       const rtVoice = coerceVoiceId(agentVoice || envVoice || "cedar");
       rtcVoiceRef.current = rtVoice;
 
-      // PATCH stage-quality: explicit Summit mode without hardcoding contracts in-component
-      const runtimeMode = summitRuntimeModeRef.current === "summit" ? "summit" : "platform";
-      const isInstitutionalSession = destMode === "team" || runtimeMode === "summit";
-      const agentIdToSend = isInstitutionalSession ? null : (destSingle || null);
       const languageProfile = (summitLanguageProfileRef.current || "auto").trim() || "auto";
       const start = runtimeMode === "summit"
         ? await startSummitSession({
