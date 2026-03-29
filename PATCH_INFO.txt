@@ -1,0 +1,11 @@
+PATCH0104_29_3-STREAMING-THROUGHPUT
+
+PATCH0108: remove chave duplicada 'signal' no fallback chat().
+
+PATCH0200_SUMMIT_RELEASE: Consolidated Summit web hardening (same-origin /__api proxy for Railway, SSE retry/backoff+anti-zombie, capacity modal with safe-wait messaging).
+
+
+v3.3.6 Realtime Alignment:
+- Frontend session.update now explicitly mirrors server_vad + create_response=true.
+- Realtime transcript handler now follows auto-response-first behavior for Summit stability.
+- VITE_REALTIME_VAD_SILENCE_MS and VITE_REALTIME_VAD_HOLD_MS now tune session.update turn detection.

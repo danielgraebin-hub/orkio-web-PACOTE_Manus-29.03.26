@@ -1,0 +1,33 @@
+PATCH v3.3.4 — SUMMIT CLEAN REBUILD
+
+Objetivo
+- Entregar um frontend limpo, reprodutível e pronto para novo deploy no Railway.
+
+O que foi consolidado
+- src/routes/AppConsole.jsx com gate obrigatório de onboarding
+- src/components/OnboardingModal.jsx padronizado
+- src/ui/api.js reconstruído com exports usados pelo app
+- compatibilidade com enums legados e novos
+- resolução explícita de API_BASE_URL
+
+Validação feita
+- npm run build executado com sucesso localmente
+
+Checklist de deploy
+1. Railway Web:
+   - VITE_API_BASE_URL=https://SUA-API.atual
+2. Build command:
+   - npm install && npm run build
+3. Start command:
+   - npm start
+
+Fluxo para testar
+- login aprovado
+- GET /api/me
+- abertura do onboarding se onboarding_completed=false
+- POST /api/user/onboarding
+- fechamento do modal e atualização local da sessão
+- chat público básico
+
+Observação
+- Este zip foi gerado sem node_modules nem dist para forçar build limpo no deploy.

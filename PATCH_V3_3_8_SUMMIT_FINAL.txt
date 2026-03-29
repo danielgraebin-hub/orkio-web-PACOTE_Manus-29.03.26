@@ -1,0 +1,7 @@
+Orkio Web Patch v3.3.8 Summit Final
+
+Included:
+- Mobile-accessible agent selector drawer / floating entrypoint
+- Desktop agent selector cluster in topbar
+- Realtime orchestration status chip + reconnect action
+- Admin console expects unified users/approvals flow with onboarding details and delete user support
