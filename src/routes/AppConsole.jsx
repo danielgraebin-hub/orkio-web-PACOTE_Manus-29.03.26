@@ -14,7 +14,7 @@ const SUMMIT_VOICE_MODE = ((ORKIO_ENV.VITE_SUMMIT_VOICE_MODE || import.meta.env.
   : "realtime";
 const ENABLE_REALTIME = ((ORKIO_ENV.VITE_ENABLE_REALTIME || import.meta.env.VITE_ENABLE_REALTIME || "true").toString().trim().toLowerCase() !== "false");
 const ENABLE_VOICE = ((ORKIO_ENV.VITE_ENABLE_VOICE || import.meta.env.VITE_ENABLE_VOICE || "true").toString().trim().toLowerCase() !== "false");
-const SPEECH_RECOGNITION_LANG = ((ORKIO_ENV.VITE_SPEECH_RECOGNITION_LANG || import.meta.env.VITE_SPEECH_RECOGNITION_LANG || "en-US").trim() || "en-US");
+const SPEECH_RECOGNITION_LANG = ((ORKIO_ENV.VITE_SPEECH_RECOGNITION_LANG || import.meta.env.VITE_SPEECH_RECOGNITION_LANG || "pt-BR").trim() || "pt-BR");
 const ORKIO_SIDEBAR_LOGO = "/Logo Orkio_V2_Transparente.png";
 
 
@@ -1580,7 +1580,7 @@ useEffect(() => {
             console.info('[V2V] v2v_record_received trace_id=%s size=%d', trace, blob.size);
 
             try {
-              const sttLang = (window.__ORKIO_ENV__?.VITE_STT_LANGUAGE || window.__ORKIO_ENV__?.VITE_REALTIME_TRANSCRIBE_LANGUAGE || import.meta.env.VITE_STT_LANGUAGE || import.meta.env.VITE_REALTIME_TRANSCRIBE_LANGUAGE || "").trim();
+              const sttLang = (window.__ORKIO_ENV__?.VITE_STT_LANGUAGE || window.__ORKIO_ENV__?.VITE_REALTIME_TRANSCRIBE_LANGUAGE || import.meta.env.VITE_STT_LANGUAGE || import.meta.env.VITE_REALTIME_TRANSCRIBE_LANGUAGE || "pt").trim();
               const result = await transcribeAudio(blob, { token, org: tenant, trace_id: trace, language: sttLang || null });
               const text = (result?.text || '').trim();
               console.info('[V2V] v2v_stt_ok trace_id=%s chars=%d preview=%s', trace, text.length, text.slice(0, 60));
