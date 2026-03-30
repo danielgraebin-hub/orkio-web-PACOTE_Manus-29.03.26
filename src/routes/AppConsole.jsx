@@ -546,9 +546,9 @@ const [onboardingForm, setOnboardingForm] = useState(() => sanitizeOnboardingFor
   const micEnabledRef = useRef(false);
   const micRetryRef = useRef({ tries: 0, lastTry: 0 });
 
-  // PATCH0100_13: Voice Mode (TTS + auto-send)
-  const [voiceMode, setVoiceMode] = useState(ENABLE_VOICE && SUMMIT_VOICE_MODE === "stt_tts");
-  const voiceModeRef = useRef(ENABLE_VOICE && SUMMIT_VOICE_MODE === "stt_tts");
+  // PATCH AO-01.1: Voice mode must depend on voice capability, not legacy stt_tts mode
+  const [voiceMode, setVoiceMode] = useState(ENABLE_VOICE);
+  const voiceModeRef = useRef(ENABLE_VOICE);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const ttsAudioRef = useRef(null);
   const [ttsVoice, setTtsVoice] = useState(localStorage.getItem('orkio_tts_voice') || 'cedar');
@@ -580,7 +580,9 @@ const [onboardingForm, setOnboardingForm] = useState(() => sanitizeOnboardingFor
   const rtcResponseTimeoutRef = useRef(null);
   const rtcFallbackActiveRef = useRef(false);
   const rtcResponseInFlightRef = useRef(false);
-
+  const rtcInstitutionalTurnInFlightRef = useRef(false);
+  const rtcLastSubmittedTranscriptRef = useRef("");
+  const rtcLastSubmittedTranscriptTsRef = useRef(0);
 
 const rtcIdleFollowupTimerRef = useRef(null);
 const rtcIdleFollowupSentRef = useRef(false);
@@ -856,18 +858,8 @@ useEffect(() => {
       voiceModeRef.current = false;
       return;
     }
-    if (SUMMIT_VOICE_MODE === "stt_tts") {
-      setVoiceMode(true);
-      voiceModeRef.current = true;
-      if (realtimeModeRef.current) {
-        try { void stopRealtime("voice_mode_lock"); } catch {}
-        setRealtimeMode(false);
-        realtimeModeRef.current = false;
-      }
-      return;
-    }
-    setVoiceMode(false);
-    voiceModeRef.current = false;
+    setVoiceMode(true);
+    voiceModeRef.current = true;
   }, []);
 
   useEffect(() => {
@@ -1218,7 +1210,8 @@ useEffect(() => {
       const pref = buildMessagePrefix();
       const finalMsg = pref + msg;
 
-      const isInstitutionalTurn = destMode === "team" || !!opts?.realtimeTurn;
+      const runtimeIsSummit = summitRuntimeModeRef.current === "summit";
+      const isInstitutionalTurn = destMode === "team" || !!opts?.realtimeTurn || runtimeIsSummit;
       const agentIdToSend = isInstitutionalTurn ? null : (destSingle || null);
 
       // optimistic message
@@ -1334,10 +1327,12 @@ useEffect(() => {
           }
 
           if (eventName === "done") {
+            rtcInstitutionalTurnInFlightRef.current = false;
             return true;
           }
 
           if (eventName === "error") {
+            rtcInstitutionalTurnInFlightRef.current = false;
             const err = new Error(payload?.message || payload?.error || "stream error");
             err.status = payload?.status || 500;
             throw err;
@@ -1406,7 +1401,7 @@ useEffect(() => {
         }
       }
       // V2V-PATCH: Auto-play TTS — fase TTS + fase playing com trace_id
-      if (voiceModeRef.current) {
+      if (voiceModeRef.current || !!opts?.explicitVoiceRequested || !!opts?.voiceRequested || !!opts?.realtimeTurn) {
         if (micEnabledRef.current) stopMic();
         const prevLast = messagesRef.current?.slice?.().reverse?.().find?.(m => m.role === "assistant" && !String(m?.id||"").startsWith("tmp-ass-"))?.created_at || null;
         const fresh = (freshMessages || []);
@@ -1458,12 +1453,14 @@ useEffect(() => {
       }
 
     } catch (e) {
+      rtcInstitutionalTurnInFlightRef.current = false;
       console.error("[V2V] sendMessage error:", e);
       setV2vPhase('error');
       // BUG-04 FIX: trocar alert() por setV2vError — alert() bloqueia JS thread
       // e impede o V2V de reiniciar o microfone
       setV2vError(e?.message || "Falha ao enviar mensagem");
     } finally {
+      rtcInstitutionalTurnInFlightRef.current = false;
       setSending(false);
       try { if (!ttsPlaying) setUploadStatus(''); } catch {}
     }
@@ -2259,10 +2256,32 @@ function scheduleRealtimeIdleFollowup() {
 
             Promise.resolve(guardAndMaybeBlockRealtimeTranscript(raw)).then((blocked) => {
               if (blocked) return;
-              setRtcReadyToRespond(!!raw.trim());
-              const norm = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+              const normalized = raw.trim();
+              setRtcReadyToRespond(!!normalized);
+              if (!normalized) return;
+
+              const nowMs = Date.now();
+              const norm = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
               const endsWithCmd = (s, cmd) => s === cmd || s.endsWith(' ' + cmd);
               const isMagic = endsWithCmd(norm, 'continue') || endsWithCmd(norm, 'please') || endsWithCmd(norm, 'prossiga') || endsWithCmd(norm, 'por favor');
+
+              if (REALTIME_INSTITUTIONAL_MODE) {
+                const sameTranscript = rtcLastSubmittedTranscriptRef.current === normalized;
+                const tooSoon = (nowMs - (rtcLastSubmittedTranscriptTsRef.current || 0)) < 1200;
+                if (rtcInstitutionalTurnInFlightRef.current || sameTranscript || tooSoon) {
+                  return;
+                }
+                rtcInstitutionalTurnInFlightRef.current = true;
+                rtcLastSubmittedTranscriptRef.current = normalized;
+                rtcLastSubmittedTranscriptTsRef.current = nowMs;
+                sendMessage(normalized, {
+                  realtimeTurn: true,
+                  explicitVoiceRequested: true,
+                  useStream: true,
+                });
+                return;
+              }
+
               if (rtcMagicEnabledRef.current && isMagic) {
                 try {
                   if (rtcLastMagicRef.current !== norm) {
@@ -2272,26 +2291,20 @@ function scheduleRealtimeIdleFollowup() {
                 } catch (err) {
                   console.warn('[Realtime] magic trigger failed', err);
                 }
-              } else if (raw.trim()) {
-                if (REALTIME_INSTITUTIONAL_MODE) {
-                  sendMessage(raw, {
-                    realtimeTurn: true,
-                    explicitVoiceRequested: true,
-                    useStream: true,
-                  });
-                } else if (REALTIME_AUTO_RESPONSE_ENABLED) {
-                  triggerRealtimeResponse("auto_vad");
-                } else {
-                  setUploadStatus('Ready to respond — click ▶️ or press Space/Enter.');
-                  setTimeout(() => setUploadStatus(''), 1800);
-                }
+              } else if (REALTIME_AUTO_RESPONSE_ENABLED) {
+                triggerRealtimeResponse("auto_vad");
+              } else {
+                setUploadStatus('Ready to respond — click ▶️ or press Space/Enter.');
+                setTimeout(() => setUploadStatus(''), 1800);
               }
             });
           }
 // Basic telemetry + optional live captions
           if (ev?.type === 'response.text.delta' && ev?.delta) {
             clearRealtimeResponseTimeout();
-            rtcTextBufRef.current += ev.delta;
+            if (!REALTIME_INSTITUTIONAL_MODE) {
+              rtcTextBufRef.current += ev.delta;
+            }
           }
           if (ev?.type === 'response.created') {
             clearRealtimeResponseTimeout();
@@ -2324,7 +2337,9 @@ function scheduleRealtimeIdleFollowup() {
           }
           if (ev?.type === 'response.audio_transcript.delta' && ev?.delta) {
             clearRealtimeResponseTimeout();
-            rtcAudioTranscriptBufRef.current = (rtcAudioTranscriptBufRef.current || '') + ev.delta;
+            if (!REALTIME_INSTITUTIONAL_MODE) {
+              rtcAudioTranscriptBufRef.current = (rtcAudioTranscriptBufRef.current || '') + ev.delta;
+            }
           }
           if (ev?.type === 'response.audio_transcript.done' || ev?.type === 'response.audio_transcript.final') {
             clearRealtimeResponseTimeout();
@@ -3516,7 +3531,7 @@ async function stopRealtime(reason = 'client_stop') {
                   <div style={{ marginRight: 8, flexShrink: 0, alignSelf: "flex-start", marginTop: 4 }}>
                     <img
                       src={lastAgentInfo.avatar_url}
-                      alt={m.agent_name || "Agent"}
+                      alt={m.agent_name || m.agent?.name || agents.find((a) => String(a?.id) === String(m.agent_id))?.name || "Agent"}
                       style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(255,255,255,0.15)" }}
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
@@ -3536,9 +3551,10 @@ async function stopRealtime(reason = 'client_stop') {
                     const evt = tryParseEvent(m.content);
                     const isUser = m.role === "user";
                     const isSystem = m.role === "system";
+                    const resolvedAgentName = (m.agent_name || m.agent?.name || agents.find((a) => String(a?.id) === String(m.agent_id))?.name || "").trim();
                     const name = isUser
                       ? (m.user_name || meName)
-                      : (m.agent_name || (isSystem ? "Sistema" : "Agente"));
+                      : (resolvedAgentName || (isSystem ? "Sistema" : "Agente"));
                     const nameTone = isUser ? styles.nameUser : isSystem ? styles.nameSystem : styles.nameAgent;
                     const created = formatDateTime(m.created_at);
                     const visible = stripEventMarker(m.content);
