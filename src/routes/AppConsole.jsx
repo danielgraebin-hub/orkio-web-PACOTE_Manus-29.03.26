@@ -2319,7 +2319,56 @@ function scheduleRealtimeIdleFollowup() {
                 }
               } else if (raw.trim()) {
                 if (REALTIME_INSTITUTIONAL_MODE) {
-                  sendMessage(raw, {
+                  // PATCH_RTSWITCH: Detect agent switch intent in voice transcript
+                  // Transforms natural speech like "chama a Cris" into "@Cris" mention
+                  let processedTranscript = raw;
+                  const agentMap = agentsByNameRef.current;
+                  if (agentMap && agentMap.size > 0) {
+                    const low = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    // PT patterns: "chama/traz/convida/coloca/pede/fala com [a/o] NomeAgente"
+                    // EN patterns: "call/bring/invite/get/talk to NomeAgente"
+                    // Also: "quero falar com", "preciso do/da", "passa para"
+                    const switchPatterns = [
+                      /(?:chama|traz|traga|convida|coloca|pede|fala\s+com|quero\s+falar\s+com|preciso\s+d[aoe]|passa\s+(?:para|pro|pra)|manda|bota|chame|traze)\s+(?:a\s+|o\s+|ao\s+)?([a-z]+)/gi,
+                      /(?:call|bring|invite|get|talk\s+to|switch\s+to|pass\s+to|i\s+need|connect\s+(?:me\s+)?(?:to|with))\s+([a-z]+)/gi,
+                      /(?:todos|todo\s+mundo|equipe\s+toda|time\s+todo|all\s+agents|everyone|whole\s+team)/gi,
+                    ];
+                    let mentionInjected = false;
+                    // Check for "all agents" / "todos" pattern
+                    if (/(?:todos|todo\s+mundo|equipe\s+toda|time\s+todo|all\s+agents|everyone|whole\s+team)/i.test(low)) {
+                      if (!/@team/i.test(raw)) {
+                        processedTranscript = "@Team " + raw;
+                        mentionInjected = true;
+                      }
+                    }
+                    if (!mentionInjected) {
+                      for (const pattern of switchPatterns.slice(0, 2)) {
+                        let match;
+                        const regex = new RegExp(pattern.source, pattern.flags);
+                        while ((match = regex.exec(low)) !== null) {
+                          const spokenName = (match[1] || "").trim();
+                          if (!spokenName) continue;
+                          // Find matching agent by name (fuzzy: startsWith)
+                          for (const [agentName] of agentMap) {
+                            const agentLow = agentName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            if (agentLow === spokenName || agentLow.startsWith(spokenName) || spokenName.startsWith(agentLow)) {
+                              if (!new RegExp('@' + agentName, 'i').test(raw)) {
+                                processedTranscript = `@${agentName} ` + raw;
+                                mentionInjected = true;
+                              }
+                              break;
+                            }
+                          }
+                          if (mentionInjected) break;
+                        }
+                        if (mentionInjected) break;
+                      }
+                    }
+                    if (mentionInjected) {
+                      try { console.log('[RTSWITCH] Agent switch detected:', { original: raw, processed: processedTranscript }); } catch {}
+                    }
+                  }
+                  sendMessage(processedTranscript, {
                     realtimeTurn: true,
                     explicitVoiceRequested: true,
                     useStream: true,
