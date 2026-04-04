@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Orkio</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Orkio</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#070910" />
+    <meta name="description" content="Orkio — Your AI-powered executive intelligence layer. Talk to your C-Suite by text or voice." />
+
+    <!-- Apple PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Orkio" />
+    <link rel="apple-touch-icon" href="/icons/orkio-192.png" />
+
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -11,11 +29,19 @@
         }
       };
     </script>
-    <link rel="manifest" href="/manifest.webmanifest">
-</head>
+  </head>
   <body class="bg-[#070910] text-white antialiased">
     <div id="root"></div>
     <!-- @vite-ignore --><script src="/env.js"></script>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        });
+      }
+    </script>
   </body>
 </html>

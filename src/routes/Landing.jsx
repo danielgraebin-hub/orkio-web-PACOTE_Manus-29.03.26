@@ -10,6 +10,16 @@ const floatingStyle = {
   animation: "orkioFloat 6s ease-in-out infinite",
 };
 
+// PATCH_LANDING: Agent team showcase for auto-venda
+const TEAM_AGENTS = [
+  { name: "Orkio", role: "Chief Intelligence Officer", emoji: "\u{1F9E0}", color: "#37C5FF", desc: "Orchestrates all agents, plans strategy and ensures coherent execution across the board." },
+  { name: "Chris", role: "Chief Financial Officer", emoji: "\u{1F4CA}", color: "#4ADE80", desc: "Financial projections, cash flow analysis, investment strategy and fiscal governance." },
+  { name: "Orion", role: "Chief Technology Officer", emoji: "\u{1F680}", color: "#7D6BFF", desc: "Technology roadmap, architecture decisions, engineering leadership and innovation." },
+  { name: "Aurora", role: "Chief Marketing Officer", emoji: "\u{2728}", color: "#F6C453", desc: "Brand strategy, market positioning, growth campaigns and audience intelligence." },
+  { name: "Atlas", role: "Chief Revenue Officer", emoji: "\u{1F4B0}", color: "#FF6B6B", desc: "Revenue models, sales pipelines, partnerships and commercial acceleration." },
+  { name: "Themis", role: "Chief Legal Officer", emoji: "\u{2696}\uFE0F", color: "#A78BFA", desc: "Legal compliance, contracts, regulatory mapping and governance frameworks." },
+];
+
 export default function Landing() {
   const nav = useNavigate();
   const token = getToken();
@@ -28,6 +38,21 @@ export default function Landing() {
         @keyframes orkioPulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(55,197,255,0.18), 0 0 24px rgba(55,197,255,0.16); }
           50% { box-shadow: 0 0 0 14px rgba(55,197,255,0), 0 0 42px rgba(55,197,255,0.26); }
+        }
+        @keyframes orkioTeamGlow {
+          0%, 100% { box-shadow: 0 0 0 0 var(--agent-color-alpha, rgba(55,197,255,0.15)); }
+          50% { box-shadow: 0 0 20px 4px var(--agent-color-alpha, rgba(55,197,255,0.25)); }
+        }
+        @keyframes orkioSlideUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .orkio-team-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .orkio-team-card:hover { transform: translateY(-4px); }
+        /* Mobile hamburger */
+        .orkio-mobile-nav { display: none; }
+        @media (max-width: 767px) {
+          .orkio-mobile-nav { display: flex; }
         }
       `}</style>
 
@@ -51,6 +76,9 @@ export default function Landing() {
           </button>
 
           <nav className="hidden items-center gap-2 md:flex">
+            <a className="rounded-xl px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white" href="#team">
+              Team
+            </a>
             <a className="rounded-xl px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white" href="#what">
               What
             </a>
@@ -200,6 +228,61 @@ export default function Landing() {
                 <p className="mt-3 text-white/72">Turn ambiguity into direction, decisions and execution-ready next steps.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* PATCH_LANDING: Meet Your Intelligence Team — auto-venda */}
+        <section id="team" className="mx-auto max-w-6xl px-4 py-14">
+          <div className="text-center mb-10">
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-[#37C5FF]">Your C-Suite, Powered by AI</div>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.03em] text-white sm:text-4xl">
+              Meet your intelligence team.
+            </h2>
+            <p className="mt-4 mx-auto max-w-2xl text-base leading-7 text-white/70">
+              Each agent brings deep specialization. Together, they form a complete executive layer
+              that thinks, plans and executes — in real time, by voice or text.
+            </p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {TEAM_AGENTS.map((agent, i) => (
+              <div
+                key={agent.name}
+                className="orkio-team-card rounded-[24px] border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm"
+                style={{
+                  animationDelay: `${i * 0.1}s`,
+                  animation: "orkioSlideUp 0.5s ease-out both",
+                  "--agent-color-alpha": agent.color + "33",
+                }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="flex items-center justify-center rounded-full text-2xl"
+                    style={{
+                      width: 52, height: 52,
+                      background: `linear-gradient(135deg, ${agent.color}22, ${agent.color}44)`,
+                      border: `2px solid ${agent.color}55`,
+                      boxShadow: `0 0 16px ${agent.color}22`,
+                    }}
+                  >
+                    {agent.emoji}
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-white">{agent.name}</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.1em]" style={{ color: agent.color }}>{agent.role}</div>
+                  </div>
+                </div>
+                <p className="text-sm leading-6 text-white/65">{agent.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-10 text-center">
+            <p className="text-sm text-white/50 mb-4">Talk to one. Or all at once. They orchestrate automatically.</p>
+            <button
+              onClick={() => nav(isLogged ? "/app" : "/auth")}
+              className="rounded-2xl bg-[linear-gradient(135deg,#37C5FF,#7D6BFF)] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-[#0B0F14] shadow-[0_14px_34px_rgba(55,197,255,0.22)] transition hover:-translate-y-0.5"
+            >
+              {isLogged ? "Start a conversation" : "Meet the team"}
+            </button>
           </div>
         </section>
 

@@ -381,6 +381,56 @@ export async function chatStream({
 }
 
 /* =========================
+ * ORCHESTRATE (Orkio Maestro)
+ * ========================= */
+
+export async function orchestrateStream({
+  token,
+  org,
+  tenant,
+  thread_id,
+  message,
+  trace_id,
+  client_message_id,
+  signal,
+} = {}) {
+  const response = await fetch(joinApi("/api/orchestrate"), {
+    method: "POST",
+    headers: headers({
+      token,
+      org: org || tenant,
+      json: true,
+    }),
+    credentials: "include",
+    signal,
+    body: JSON.stringify({
+      thread_id,
+      message,
+      trace_id,
+      client_message_id,
+      tenant: tenant || org || readTenant(),
+    }),
+  });
+
+  if (response.status === 401) {
+    clearSession();
+    if (typeof window !== "undefined") {
+      window.location.href = "/auth?session_expired=1";
+    }
+    throw new Error("Session expired");
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    const err = new Error(text || `HTTP ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response;
+}
+
+/* =========================
  * AUDIO / STT
  * ========================= */
 

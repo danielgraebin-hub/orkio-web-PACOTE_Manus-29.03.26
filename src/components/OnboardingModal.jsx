@@ -387,13 +387,63 @@ function mapBackendMissingField(name) {
   return map[String(name || "").trim()] || "";
 }
 
+// PATCH_ONBOARDING: Wizard step definitions
+const WIZARD_STEPS = [
+  { id: 1, title: "Your profile", subtitle: "Help us understand who you are.", icon: "\u{1F464}", fields: ["company", "role", "user_type", "intent"] },
+  { id: 2, title: "Location & contact", subtitle: "So we can personalize your experience.", icon: "\u{1F30D}", fields: ["country", "language", "whatsapp"] },
+  { id: 3, title: "Almost there", subtitle: "Any context to help Orkio serve you better?", icon: "\u{2728}", fields: ["notes"] },
+];
+
 export default function OnboardingModal({ user, onComplete }) {
   const [form, setForm] = useState(() => sanitizeOnboardingPayload(user));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState(() => emptyFieldErrors());
+  const [step, setStep] = useState(1); // PATCH_ONBOARDING: wizard step
 
   const fullName = useMemo(() => (user?.name || "").trim(), [user]);
+  const currentStep = WIZARD_STEPS.find(s => s.id === step) || WIZARD_STEPS[0];
+  const totalSteps = WIZARD_STEPS.length;
+  const progress = Math.round((step / totalSteps) * 100);
+
+  function canAdvanceStep() {
+    const fields = currentStep.fields;
+    for (const f of fields) {
+      if (f === "notes") continue; // notes is optional
+      const val = form[f];
+      if (!val || !String(val).trim()) return false;
+      if (f === "whatsapp") {
+        const err = validateWhatsapp(form.whatsapp, form.country);
+        if (err) return false;
+      }
+    }
+    return true;
+  }
+
+  function handleNext() {
+    // Validate current step fields
+    const errors = { ...emptyFieldErrors() };
+    for (const f of currentStep.fields) {
+      if (f === "notes") continue;
+      if (!form[f] || !String(form[f]).trim()) {
+        errors[f] = `This field is required.`;
+      }
+      if (f === "whatsapp") {
+        const err = validateWhatsapp(form.whatsapp, form.country);
+        if (err) errors.whatsapp = err;
+      }
+    }
+    const hasErrors = currentStep.fields.some(f => errors[f]);
+    if (hasErrors) {
+      setFieldErrors(prev => ({ ...prev, ...errors }));
+      return;
+    }
+    if (step < totalSteps) setStep(step + 1);
+  }
+
+  function handleBack() {
+    if (step > 1) setStep(step - 1);
+  }
 
   function clearFieldError(key) {
     setFieldErrors((prev) => ({ ...prev, [key]: "" }));
@@ -540,24 +590,26 @@ export default function OnboardingModal({ user, onComplete }) {
           boxSizing: "border-box",
         }}
       >
+        {/* PATCH_ONBOARDING: Wizard header with progress */}
         <div style={{ marginBottom: 16 }}>
-          <div
-            style={{
-              fontSize: 12,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "#475569",
-              fontWeight: 800,
-            }}
-          >
-            Orkio
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 28 }}>{currentStep.icon}</span>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#475569", fontWeight: 800 }}>
+                Orkio — Step {step} of {totalSteps}
+              </div>
+              <h2 style={{ margin: "4px 0 2px", fontSize: 26, lineHeight: 1.1 }}>
+                {currentStep.title}
+              </h2>
+            </div>
           </div>
-          <h2 style={{ margin: "8px 0 6px", fontSize: 30, lineHeight: 1.1 }}>
-            Complete your onboarding
-          </h2>
-          <p style={{ margin: 0, color: "#475569", lineHeight: 1.55 }}>
-            Tell us a bit about your context so we can personalize your console experience from the first session.
+          <p style={{ margin: 0, color: "#475569", lineHeight: 1.55, fontSize: 14 }}>
+            {currentStep.subtitle}
           </p>
+          {/* Progress bar */}
+          <div style={{ marginTop: 12, height: 6, borderRadius: 3, background: "#e2e8f0", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progress}%`, borderRadius: 3, background: "linear-gradient(135deg, #2563eb, #7c3aed)", transition: "width 0.4s ease" }} />
+          </div>
         </div>
 
         <div
@@ -576,6 +628,8 @@ export default function OnboardingModal({ user, onComplete }) {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+          {/* Step 1: Profile */}
+          {step === 1 && (<>
           <div>
             <label style={labelStyle}>Full name</label>
             <input value={fullName} readOnly disabled style={{ ...fieldStyle, opacity: 0.85 }} />
@@ -694,7 +748,10 @@ export default function OnboardingModal({ user, onComplete }) {
               {fieldErrors.intent ? <div style={fieldErrorStyle}>{fieldErrors.intent}</div> : null}
             </div>
           </div>
+          </>)}
 
+          {/* Step 2: Location & Contact */}
+          {step === 2 && (<>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             <div>
               <label style={labelStyle}>
@@ -809,7 +866,10 @@ export default function OnboardingModal({ user, onComplete }) {
             </div>
             {fieldErrors.whatsapp ? <div style={fieldErrorStyle}>{fieldErrors.whatsapp}</div> : null}
           </div>
+          </>)}
 
+          {/* Step 3: Context */}
+          {step === 3 && (<>
           <div>
             <label style={labelStyle}>Additional context</label>
             <textarea
@@ -835,6 +895,17 @@ export default function OnboardingModal({ user, onComplete }) {
             <div style={helperTextStyle}>{form.notes.length}/{NOTES_MAX}</div>
             {fieldErrors.notes ? <div style={fieldErrorStyle}>{fieldErrors.notes}</div> : null}
           </div>
+
+          {/* Auto-venda: show what Orkio can do */}
+          <div style={{ borderRadius: 18, border: "1px solid #dbeafe", background: "linear-gradient(135deg, rgba(55,197,255,0.06), rgba(125,107,255,0.06))", padding: "16px", marginTop: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", marginBottom: 6 }}>What happens next?</div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#475569", lineHeight: 1.8 }}>
+              <li>Orkio will greet you with a personalized welcome message</li>
+              <li>Your AI executive team will be ready to assist immediately</li>
+              <li>Talk to one agent or all at once — by text or voice</li>
+            </ul>
+          </div>
+          </>)}
         </div>
 
         {error ? (
@@ -853,6 +924,7 @@ export default function OnboardingModal({ user, onComplete }) {
           </div>
         ) : null}
 
+        {/* PATCH_ONBOARDING: Wizard navigation */}
         <div
           style={{
             display: "flex",
@@ -863,29 +935,71 @@ export default function OnboardingModal({ user, onComplete }) {
             flexWrap: "wrap",
           }}
         >
-          <div style={{ color: "#64748b", fontSize: 13 }}>
-            Your preferred language can be updated later inside the console settings.
-          </div>
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={busy}
+              style={{
+                border: "1px solid #cbd5e1",
+                borderRadius: 16,
+                padding: "12px 20px",
+                cursor: "pointer",
+                background: "#ffffff",
+                color: "#475569",
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Back
+            </button>
+          ) : (
+            <div style={{ color: "#64748b", fontSize: 13 }}>
+              This takes less than a minute.
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={busy}
-            style={{
-              border: 0,
-              borderRadius: 16,
-              padding: "14px 18px",
-              minWidth: 220,
-              cursor: busy ? "not-allowed" : "pointer",
-              background: "linear-gradient(135deg, #2563eb, #7c3aed)",
-              color: "#ffffff",
-              fontWeight: 800,
-              fontSize: 15,
-              boxShadow: "0 14px 30px rgba(37,99,235,0.24)",
-              opacity: busy ? 0.75 : 1,
-            }}
-          >
-            {busy ? "Saving..." : "Continue to console"}
-          </button>
+          {step < totalSteps ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={busy}
+              style={{
+                border: 0,
+                borderRadius: 16,
+                padding: "14px 24px",
+                minWidth: 180,
+                cursor: "pointer",
+                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: 15,
+                boxShadow: "0 14px 30px rgba(37,99,235,0.24)",
+              }}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                border: 0,
+                borderRadius: 16,
+                padding: "14px 24px",
+                minWidth: 220,
+                cursor: busy ? "not-allowed" : "pointer",
+                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: 15,
+                boxShadow: "0 14px 30px rgba(37,99,235,0.24)",
+                opacity: busy ? 0.75 : 1,
+              }}
+            >
+              {busy ? "Saving..." : "Enter Orkio"}
+            </button>
+          )}
         </div>
       </form>
     </div>
